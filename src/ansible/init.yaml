@@ -1,0 +1,29 @@
+- name: Prepare kubespray on hosts
+  hosts: kube-master
+  become: true
+  tasks:
+    - name: Packages update
+      apt:
+        update_cache: yes
+    - name: Install packages
+      apt:
+        name:
+          - git
+          - python3-pip
+        state: present
+    - name: Clone Kubespray repo
+      git:
+        repo: https://github.com/kubernetes-sigs/kubespray.git
+        dest: /home/ubuntu/kubespray
+        version: v2.25.0
+    - name: Install requirements
+      pip:
+        requirements: /home/ubuntu/kubespray/requirements.txt
+    - name: Copy private key to master
+      ansible.posix.synchronize:
+        src: ~/.ssh/id_rsa
+        dest: ~/.ssh/id_rsa
+    - name: Copy inventory
+      ansible.posix.synchronize:
+        src: inventory-kubespray
+        dest: /home/ubuntu/kubespray/inventory/
