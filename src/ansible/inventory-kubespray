@@ -8,15 +8,18 @@ all:
     node-worker-a.ru-central1.internal:
       ansible_host: 192.168.10.11
       ip: 192.168.10.11
-      access_ip: 192.168.10.11 
+      access_ip: 192.168.10.11
+
     node-worker-b.ru-central1.internal:
       ansible_host: 192.168.20.23
       ip: 192.168.20.23
-      access_ip: 192.168.20.23 
+      access_ip: 192.168.20.23
+
     node-worker-d.ru-central1.internal:
       ansible_host: 192.168.30.3
       ip: 192.168.30.3
-      access_ip: 192.168.30.3 
+      access_ip: 192.168.30.3
+
   children:
     kube_control_plane:
       hosts:

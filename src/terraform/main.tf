@@ -189,4 +189,14 @@ output "external_ip_address_master" {
   value = yandex_compute_instance.node-master.network_interface.0.nat_ip_address
 }
 
+# Yandex Container Registry
+resource "yandex_container_registry" "diplops-reg" {
+  name = "diplops-registry"
+  folder_id = var.YC_FOLDER_ID
+}
+
+output "first_part_of_docker_image_tag" {
+  value = "cr.yandex/${yandex_container_registry.diplops-reg.id}/"
+}
+
 

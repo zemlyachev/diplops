@@ -344,5 +344,51 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ![](.README_images/9b515326.png)
 ![](.README_images/ce7564ae.png)
 
+#### Создание тестового приложения
+
+##### Пререквизиты
+* установлен docker
+![](.README_images/f2e29efe.png)
+
+###### Образ
+
+1. Создадим отдельный публичный репозиторий https://github.com/zemlyachev/diplops-app
+2. Возьмем для примера любой шаблон
+3. Напишем простейший Dokerfile
+4. Проверим сборку и запуск локально
+![](.README_images/a76b0d9b.png)
+5. Поправим пару моментов в шаблоне
+6. Проверим работоспособность образа
+![](.README_images/befc37ee.png)
+7. Локально работает
+![](.README_images/b01459cb.png)
+
+###### Yandex Container Registry, созданный также с помощью terraform
+
+1. Дополним наш [`main.tf`](src/terraform/main.tf) директивой для хранилища образов
+```hcl
+# Yandex Container Registry
+resource "yandex_container_registry" "diplops-reg" {
+  name = "diplops-registry"
+  folder_id = var.YC_FOLDER_ID
+}
+
+output "first_part_of_docker_image_tag" {
+  value = "cr.yandex/${yandex_container_registry.diplops-reg.id}/"
+}
+```
+2. Применим
+![](.README_images/260a245b.png)
+
+###### Деплой образа
+
+1. Образы необходимо создавать с тегом, или добавить тек в последствии для деплоя его в реестр
+2. Добавим тег к ранее собранному образу
+![](.README_images/5ba58fdc.png)
+3. Настроем докер на YCR
+![](.README_images/01986553.png)
+4. Запушим в реестр
+![](.README_images/f8d31ff8.png)
+![](.README_images/e0b8b4dd.png)
 
 
