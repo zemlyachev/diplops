@@ -329,30 +329,41 @@ all:
 #### Деплой Kubernetes
 
 1. Выполним подготовку `ansible-playbook -i inventory-init -b -v -u ubuntu init.yaml`
-![](.README_images/d120a42b.png)
+   ![](.README_images/d120a42b.png)
 
-Дополним файлики
-vim kubespray/inventory/diplom-cluster/group_vars/k8s_cluster/addons.yml
+2. Дополним файлики
+   - `vim kubespray/inventory/diplom-cluster/group_vars/k8s_cluster/addons.yml`
 
-helm_enabled: true
-ingress_nginx_enabled: true
-ingress_nginx_host_network: true
+       ```yaml
+       helm_enabled: true
+       ingress_nginx_enabled: true
+       ingress_nginx_host_network: true
+       ```
+   - `vim kubespray/inventory/diplom-cluster/group_vars/k8s_cluster/k8s-cluster.yml`
 
-2. Подключаемся на мастер ноду, которая будет control plane, и запускаем плейбук kybespray
-```bash
-cd kubespray/
-sudo ansible-playbook -i inventory/diplom-cluster/inventory-kubespray -u ubuntu -b -v --private-key=/home/ubuntu/.ssh/id_rsa cluster.yml
-```
-![](.README_images/c1d0d8fb.png)
+       ```yaml
+       supplementary_addresses_in_ssl_keys: [158.160.100.70] - внешний ip
+       ```
+     
+3. Подключаемся на мастер ноду, которая будет control plane, и запускаем плейбук kybespray
+    ```bash
+    cd kubespray/
+    sudo ansible-playbook -i inventory/diplom-cluster/inventory-kubespray -u ubuntu -b -v --private-key=/home/ubuntu/.ssh/id_rsa cluster.yml
+    ```
+   ![](.README_images/c1d0d8fb.png)
 3. Настроим kubectl
-```bash
-mkdir -p $HOME/.kube
-sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-sudo chown $(id -u):$(id -g) $HOME/.kube/config
-```
+    ```bash
+    mkdir -p $HOME/.kube
+    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+    ```
 4. Развернутый кластер
-![](.README_images/ed01aaa8.png)
-![](.README_images/2d9d5412.png)
+    ![](.README_images/ed01aaa8.png)
+    ![](.README_images/2d9d5412.png)
+
+5. Заберем конфиг на локальную машину для удобства
+    ![](.README_images/0a9bc902.png)
+    Теперь управление кластером доступно локально
 
 #### Создание тестового приложения
 
@@ -366,60 +377,96 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 2. Возьмем для примера любой шаблон
 3. Напишем простейший Dokerfile
 4. Проверим сборку и запуск локально
-![](.README_images/a76b0d9b.png)
+    ![](.README_images/a76b0d9b.png)
 5. Поправим пару моментов в шаблоне
 6. Проверим работоспособность образа
-![](.README_images/befc37ee.png)
+    ![](.README_images/befc37ee.png)
 7. Локально работает
-![](.README_images/b01459cb.png)
+    ![](.README_images/b01459cb.png)
 
 ###### Yandex Container Registry, созданный также с помощью terraform
 
 1. Дополним наш [`main.tf`](src/terraform/main.tf) директивой для хранилища образов
-```hcl
-# Yandex Container Registry
-resource "yandex_container_registry" "diplops-reg" {
-  name = "diplops-registry"
-  folder_id = var.YC_FOLDER_ID
-}
-
-output "first_part_of_docker_image_tag" {
-  value = "cr.yandex/${yandex_container_registry.diplops-reg.id}/"
-}
-```
+    ```hcl
+    # Yandex Container Registry
+    resource "yandex_container_registry" "diplops-reg" {
+      name = "diplops-registry"
+      folder_id = var.YC_FOLDER_ID
+    }
+    
+    output "first_part_of_docker_image_tag" {
+      value = "cr.yandex/${yandex_container_registry.diplops-reg.id}/"
+    }
+    ```
 2. Применим
-![](.README_images/260a245b.png)
+    ![](.README_images/260a245b.png)
 
 ###### Деплой образа в реестр
 
 1. Образы необходимо создавать с тегом, или добавить тек в последствии для деплоя его в реестр
 2. Добавим тег к ранее собранному образу
-![](.README_images/5ba58fdc.png)
+    ![](.README_images/5ba58fdc.png)
 3. Настроем докер на YCR
-![](.README_images/01986553.png)
+    ![](.README_images/01986553.png)
 4. Запушим в реестр
-![](.README_images/f8d31ff8.png)
-![](.README_images/e0b8b4dd.png)
+    ![](.README_images/f8d31ff8.png)
+    ![](.README_images/e0b8b4dd.png)
 
 #### Подготовка cистемы мониторинга и деплой приложения
 
-git clone https://github.com/prometheus-operator/kube-prometheus
-![](.README_images/b0ad6fd1.png)
+##### Мониторинг
 
-```bash
-kubectl apply --server-side -f manifests/setup
-kubectl wait \
-	--for condition=Established \
-	--all CustomResourceDefinition \
-	--namespace=monitoring
-kubectl apply -f manifests/
-```
-![](.README_images/512cccc8.png)
-![](.README_images/e69b12cb.png)
-![](.README_images/2b2c8bd8.png)
-Ждем
+1. Клонируем репозитарий 
+    `git clone https://github.com/prometheus-operator/kube-prometheus`
+    
+    ![](.README_images/b0ad6fd1.png)
+    
+2. Выполняем
+    ```bash
+    kubectl apply --server-side -f manifests/setup
+    kubectl wait \
+        --for condition=Established \
+        --all CustomResourceDefinition \
+        --namespace=monitoring
+    kubectl apply -f manifests/
+    ```
+    ![](.README_images/512cccc8.png)
+    ![](.README_images/e69b12cb.png)
+    ![](.README_images/2b2c8bd8.png)
 
-![](.README_images/da686eb6.png)
+3. Ждем
+    ![](.README_images/da686eb6.png)
 
+4. Для подключения к grafana из вне, поменяем тип сервиса на NodePort и допишем номер порта, например 31001
+    `kubectl edit svc stable-grafana -n monitoring`
+    ![](.README_images/2b3064aa.png)
+5. Зайдем на http://158.160.100.70:31001, авторизуемся с помощью стандартного логина и пароля (admin/admin, получим предложение поменять пароль, поменяем на что-то)
+    ![](.README_images/661e3ce0.png)
 
+##### Деплой
+
+1. Создадим манифест для ранее созданного приложения [app-dp-svc.yaml](https://github.com/zemlyachev/diplops-app/blob/main/app-dp-svc.yaml)
+2. Для доступа к реестру создадим сервисный аккаунт [kuber-registry-sa.tf](src/terraform/kuber-registry-sa.tf)
+![](.README_images/bde179ec.png)
+3. Создадим ключ
+![](.README_images/d11e5d9c.png)
+4. Авторизуемся этим ключем
+![](.README_images/7a9d0d9e.png)
+5. Создадим секрет для добавления его в Deployment
+![](.README_images/ef703b25.png)
+6. Выполним манифест `kubectl apply -f app-dp-svc.yaml`
+![](.README_images/8193d4e1.png)
+На http://158.160.100.70:30080 появился наш сайт
+
+##### Автоматизация
+
+1. Создадим новый репозитарий [diplops-terraform](https://github.com/zemlyachev/diplops-terraform)
+2. Перенесем все необходимые файлы
+3. Добавим секреты для доступа к Yandex.Cloud и хранилищу состояния
+   ![](.README_images/1c7d88d7.png)
+4. Напишем pipeline для GitHub Actions [terraform-ci-cd.yml](https://github.com/zemlyachev/diplops-terraform/blob/main/.github/workflows/terraform-ci-cd.yml)
+5. Пушим в main и видим что сборка прошла успешно (почти с первого раза)
+   ![](.README_images/b14fab71.png)
+6. По результатам в бакете должны увидеть инвентори для ansible
+   ![](.README_images/33bc7965.png)
 
