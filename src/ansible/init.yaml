@@ -23,7 +23,12 @@
       ansible.posix.synchronize:
         src: ~/.ssh/id_rsa
         dest: ~/.ssh/id_rsa
-    - name: Copy inventory
+    - name: Synchronize two directories on one remote host.
+      ansible.posix.synchronize:
+        src: /home/ubuntu/kubespray/inventory/sample/
+        dest: /home/ubuntu/kubespray/inventory/diplom-cluster/
+      delegate_to: "{{ inventory_hostname }}"
+    - name: Push inventory
       ansible.posix.synchronize:
         src: inventory-kubespray
-        dest: /home/ubuntu/kubespray/inventory/
+        dest: /home/ubuntu/kubespray/inventory/diplom-cluster/

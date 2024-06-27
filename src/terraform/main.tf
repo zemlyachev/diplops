@@ -138,13 +138,9 @@ resource "local_file" "inventory-init" {
   content    = <<EOF1
 [kube-master]
 ${yandex_compute_instance.node-master.network_interface.0.nat_ip_address}
-[kube-worker]
-%{ for worker in yandex_compute_instance.node-worker }
-${worker.network_interface.0.nat_ip_address}
-%{ endfor }
   EOF1
   filename   = "../ansible/inventory-init"
-  depends_on = [yandex_compute_instance.node-master, yandex_compute_instance.node-worker]
+  depends_on = [yandex_compute_instance.node-master]
 }
 
 # Create Kubespray inventory
@@ -156,21 +152,21 @@ all:
       ansible_host: ${yandex_compute_instance.node-master.network_interface.0.ip_address}
       ip: ${yandex_compute_instance.node-master.network_interface.0.ip_address}
       access_ip: ${yandex_compute_instance.node-master.network_interface.0.ip_address}
-%{ for worker in yandex_compute_instance.node-worker }
+%{ for worker in yandex_compute_instance.node-worker ~}
     ${worker.fqdn}:
       ansible_host: ${worker.network_interface.0.ip_address}
       ip: ${worker.network_interface.0.ip_address}
       access_ip: ${worker.network_interface.0.ip_address}
-%{ endfor }
+%{ endfor ~}
   children:
     kube_control_plane:
       hosts:
         ${yandex_compute_instance.node-master.fqdn}:
     kube_node:
       hosts:
-%{ for worker in yandex_compute_instance.node-worker }
+%{ for worker in yandex_compute_instance.node-worker ~}
         ${worker.fqdn}:
-%{ endfor }
+%{ endfor ~}
     etcd:
       hosts:
         ${yandex_compute_instance.node-master.fqdn}:

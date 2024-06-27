@@ -319,6 +319,8 @@ all:
 ```
 3. Применим
 ![](.README_images/1e330d2c.png)
+> В процессе внешний ip-адрес мастер ноды будет меняться...
+
 ![](.README_images/9299dd9b.png)
 4. На выходе получили 2 файла
    * [inventory-init](src/ansible/inventory-init)
@@ -328,10 +330,18 @@ all:
 
 1. Выполним подготовку `ansible-playbook -i inventory-init -b -v -u ubuntu init.yaml`
 ![](.README_images/d120a42b.png)
+
+Дополним файлики
+vim kubespray/inventory/diplom-cluster/group_vars/k8s_cluster/addons.yml
+
+helm_enabled: true
+ingress_nginx_enabled: true
+ingress_nginx_host_network: true
+
 2. Подключаемся на мастер ноду, которая будет control plane, и запускаем плейбук kybespray
 ```bash
 cd kubespray/
-sudo ansible-playbook -i inventory/inventory-kubespray -u ubuntu -b -v --private-key=/home/ubuntu/.ssh/id_rsa cluster.yml
+sudo ansible-playbook -i inventory/diplom-cluster/inventory-kubespray -u ubuntu -b -v --private-key=/home/ubuntu/.ssh/id_rsa cluster.yml
 ```
 ![](.README_images/c1d0d8fb.png)
 3. Настроим kubectl
@@ -341,8 +351,8 @@ sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ```
 4. Развернутый кластер
-![](.README_images/9b515326.png)
-![](.README_images/ce7564ae.png)
+![](.README_images/ed01aaa8.png)
+![](.README_images/2d9d5412.png)
 
 #### Создание тестового приложения
 
@@ -380,7 +390,7 @@ output "first_part_of_docker_image_tag" {
 2. Применим
 ![](.README_images/260a245b.png)
 
-###### Деплой образа
+###### Деплой образа в реестр
 
 1. Образы необходимо создавать с тегом, или добавить тек в последствии для деплоя его в реестр
 2. Добавим тег к ранее собранному образу
@@ -390,5 +400,26 @@ output "first_part_of_docker_image_tag" {
 4. Запушим в реестр
 ![](.README_images/f8d31ff8.png)
 ![](.README_images/e0b8b4dd.png)
+
+#### Подготовка cистемы мониторинга и деплой приложения
+
+git clone https://github.com/prometheus-operator/kube-prometheus
+![](.README_images/b0ad6fd1.png)
+
+```bash
+kubectl apply --server-side -f manifests/setup
+kubectl wait \
+	--for condition=Established \
+	--all CustomResourceDefinition \
+	--namespace=monitoring
+kubectl apply -f manifests/
+```
+![](.README_images/512cccc8.png)
+![](.README_images/e69b12cb.png)
+![](.README_images/2b2c8bd8.png)
+Ждем
+
+![](.README_images/da686eb6.png)
+
 
 
