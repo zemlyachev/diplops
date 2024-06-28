@@ -470,3 +470,33 @@ all:
 6. По результатам в бакете должны увидеть инвентори для ansible
    ![](.README_images/33bc7965.png)
 
+#### Установка и настройка CI/CD
+
+##### Сборка и загрузка в реестр по коммиту в main
+
+1. Для репозитария https://github.com/zemlyachev/diplops-app пропишем также pipeline github actions
+2. Добавляем секреты
+    ![](.README_images/fb02ae1c.png)
+3. Создаем pipline [build.yaml](https://github.com/zemlyachev/diplops-app/blob/main/.github/workflows/build.yml)
+4. Не забудем добавить роль "container-registry.images.pusher" в https://github.com/zemlyachev/diplops-terraform/blob/main/kuber-registry-sa.tf
+    Сработал github action:
+    ![](.README_images/774bf25a.png)
+5. Коммитим изменения, проверям action
+    ![](.README_images/03fcab85.png)
+6. Смотрим в реестре, обновился новый образ с тегом latest
+    ![](.README_images/58614eb1.png)
+
+##### Сборка и деплой при создании тега
+
+1. Создаем pipeline [deploy.yaml](https://github.com/zemlyachev/diplops-app/blob/main/.github/workflows/deploy.yml)
+2. Добавим секрет `KUBE_CONFIG` из `~/.kube/config` (`cat ~/.kube/config | base64`)
+    ![](.README_images/16b028b5.png)
+3. Изменим в шаблоне титульник и запушим с тегом `v0.0.1`
+4. Видим что action отработал
+    ![](.README_images/b764b982.png)
+5. Посмотрим на сам сайт, он обновился
+    ![](.README_images/b6107625.png)
+6. CI/CD настроен
+
+
+

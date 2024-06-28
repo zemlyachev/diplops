@@ -1,0 +1,11 @@
+- name: Get Kubernetes Config
+  hosts: kube-master
+  tasks:
+    - name: Pull kubeconfig
+      ansible.posix.synchronize:
+        src: /etc/kubernetes/admin.conf
+        dest: ~/.kube/config
+        mode: pull
+    - name: EXECUTE SHELL CMD
+      debug:
+        msg: "kubectl config set-cluster cluster.local --server=https://{{ inventory_hostname }}:6443"
