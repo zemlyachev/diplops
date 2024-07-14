@@ -1,0 +1,3 @@
+[submodule "src/diplops-terraform"]
+	path = src/diplops-terraform
+	url = git@github.com:zemlyachev/diplops-terraform.git
