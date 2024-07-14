@@ -2,33 +2,97 @@
   hosts: kube-master
   become: true
   tasks:
+
     - name: Packages update
       apt:
         update_cache: yes
+
     - name: Install packages
       apt:
         name:
           - git
           - python3-pip
         state: present
+
     - name: Clone Kubespray repo
       git:
         repo: https://github.com/kubernetes-sigs/kubespray.git
         dest: /home/ubuntu/kubespray
         version: v2.25.0
+
     - name: Install requirements
       pip:
         requirements: /home/ubuntu/kubespray/requirements.txt
+
     - name: Copy private key to master
       ansible.posix.synchronize:
         src: ~/.ssh/id_rsa
         dest: ~/.ssh/id_rsa
+
     - name: Synchronize two directories on one remote host.
       ansible.posix.synchronize:
         src: /home/ubuntu/kubespray/inventory/sample/
         dest: /home/ubuntu/kubespray/inventory/diplom-cluster/
       delegate_to: "{{ inventory_hostname }}"
+
     - name: Push inventory
       ansible.posix.synchronize:
-        src: inventory-kubespray
+        src: ../diplops-terraform/ansible/inventory-kubespray
         dest: /home/ubuntu/kubespray/inventory/diplom-cluster/
+
+    - name: Read the k8s-cluster.yml
+      slurp:
+        path: kubespray/inventory/diplom-cluster/group_vars/k8s_cluster/k8s-cluster.yml
+      register: r_cluster
+
+    - name: extract the data
+      set_fact:
+        cluster: "{{ r_cluster['content'] | b64decode | from_yaml }}"
+
+    - name: addons.yml modify params
+      set_fact:
+        cluster: "{{ cluster | combine(newcluster) }}"
+      vars:
+        newcluster:
+          kube_proxy_strict_arp: true
+          kube_network_plugin: cilium
+          supplementary_addresses_in_ssl_keys: ["{{ inventory_hostname }}"]
+
+    - name: Write back to a file k8s-cluster
+      copy:
+        content: '{{ cluster | to_nice_yaml }}'
+        dest: kubespray/inventory/diplom-cluster/group_vars/k8s_cluster/k8s-cluster.yml
+
+    - name: Read the addons.yml
+      slurp:
+        path: kubespray/inventory/diplom-cluster/group_vars/k8s_cluster/addons.yml
+      register: r_addons
+
+    - name: extract the data
+      set_fact:
+        addons: "{{ r_addons['content'] | b64decode | from_yaml }}"
+
+    - name: addons.yml modify params
+      set_fact:
+        addons: "{{ addons | combine(newaddons) }}"
+      vars:
+        newaddons:
+          metallb_enabled: true
+          metallb_version: v0.13.9
+          metallb_auto_assign: true
+          metallb_protocol: "layer2"
+          metallb_speaker_enabled: true
+          metallb_avoid_buggy_ips: true
+          metallb_ip_range:
+            - 192.168.1.200-192.168.1.220
+          ingress_nginx_enabled: true
+          ingress_nginx_host_network: false
+          ingress_publish_status_address: ""
+          ingress_nginx_namespace: "ingress-nginx"
+          ingress_nginx_insecure_port: 80
+          ingress_nginx_secure_port: 443
+
+    - name: Write back to a file addons.yml
+      copy:
+        content: '{{ addons | to_nice_yaml }}'
+        dest: kubespray/inventory/diplom-cluster/group_vars/k8s_cluster/addons.yml

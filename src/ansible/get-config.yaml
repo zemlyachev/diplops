@@ -1,11 +1,48 @@
 - name: Get Kubernetes Config
   hosts: kube-master
   tasks:
-    - name: Pull kubeconfig
-      ansible.posix.synchronize:
+
+    - name: Create a directory if it does not exist
+      ansible.builtin.file:
+        path: ~/temp
+        state: directory
+        mode: '0755'
+
+    - name: Copy config to temp file
+      become: true
+      copy:
         src: /etc/kubernetes/admin.conf
+        remote_src: true
+        dest: "/home/{{ ansible_user }}/temp/config"
+
+    - name: Read the config
+      slurp:
+        path: ~/temp/config
+      register: r_config
+
+    - name: Extract the data
+      set_fact:
+        config: "{{ r_config['content'] | b64decode | from_yaml }}"
+
+    - name: Update the server
+      ansible.utils.update_fact:
+        updates:
+          - path: config.clusters.0.cluster.server
+            value: "https://{{ inventory_hostname }}:6443"
+      register: updated
+
+    - name: Write back to a config
+      copy:
+        content: '{{ updated.config | to_nice_yaml }}'
+        dest: ~/temp/config
+
+    - name: Pull kubeconfig from remote
+      ansible.posix.synchronize:
+        src: ~/temp/config
         dest: ~/.kube/config
         mode: pull
-    - name: EXECUTE SHELL CMD
-      debug:
-        msg: "kubectl config set-cluster cluster.local --server=https://{{ inventory_hostname }}:6443"
+
+    - name: Delete tmp
+      ansible.builtin.file:
+        state: absent
+        path: ~/temp/

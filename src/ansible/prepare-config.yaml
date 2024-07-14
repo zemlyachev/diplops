@@ -1,0 +1,23 @@
+- name: Prepare Kubernetes Config
+  hosts: kube-master
+  become: true
+  tasks:
+
+    - name: Create a directory if it does not exist
+      ansible.builtin.file:
+        path: /home/ubuntu/.kube
+        state: directory
+        mode: '0755'
+
+    - name: Copy config to ~/.kube/
+      copy:
+        src: /etc/kubernetes/admin.conf
+        remote_src: true
+        dest: /home/ubuntu/.kube/config
+
+    - name: Change kubeconfig file permission
+      file:
+        path: $HOME/.kube/config
+        owner: "{{ ansible_effective_user_id }}"
+        group: "{{ ansible_effective_group_id }}"
+
