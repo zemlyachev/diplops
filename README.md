@@ -52,8 +52,8 @@
     export TF_VAR_YC_FOLDER_ID=$(yc config get folder-id)
     export TF_VAR_YC_ZONE=$(yc config get compute-default-zone)
     ```
-    > Если `yc config get compute-default-zone`, то предварительно выполним `yc config set compute-default-zone "ru-central1-a"`
-4. Создадим файл [`main.tf`](src/terraform/main.tf) для Terraform с информацией об облачном провайдере: 
+    > Если команда `yc config get compute-default-zone` ничего не отдает, то необходимо выполнить `yc config set compute-default-zone "ru-central1-a"`
+4. Создадим файл `provider.tf` для Terraform с информацией об облачном провайдере: 
     ```hcl
     terraform {
       required_providers {
@@ -71,14 +71,14 @@
       zone      = var.YC_ZONE
     }
     ```
-5. Добавим описание основных переменных для провайдера из переменных окружения в файл [`variables.tf`](src/terraform/variables.tf)
+5. Добавим описание основных переменных для провайдера из переменных окружения в файл `variables.tf`
     ```hcl
     variable "YC_TOKEN" { type = string }
     variable "YC_FOLDER_ID" { type = string }
     variable "YC_CLOUD_ID" { type = string }
     variable "YC_ZONE" { type = string }
     ```
-6. Дополним [`main.tf`](src/terraform/main.tf) сервисным аккаунтом `sa-ter-diplom` с ролью `editor`:
+6. Создадим файлик `sa-main-editor.tf` сервисным аккаунтом `sa-ter-diplom` с ролью `editor`:
     ```hcl
     resource "yandex_iam_service_account" "sa-ter-diplom" {
       folder_id = var.YC_FOLDER_ID
@@ -87,13 +87,13 @@
     resource "yandex_resourcemanager_folder_iam_member" "editor" {
       folder_id = var.YC_FOLDER_ID
       role      = "editor"
-      member    = "serviceAccount:${yandex_iam_service_account.sa-diploma.id}"
+      member    = "serviceAccount:${yandex_iam_service_account.sa-ter-diplom.id}"
     }
     ```
 
 #### Backend Terraform 
 
-1. Подготовим bucket для backend
+1. Подготовим bucket для backend в отдельном манифесте в директории [terraform-s3-backend](src%2Fterraform-s3-backend) с аналогичными основному манифесту параметра для доступа к облачному провайдеру
     ```hcl
     # Backend bucket access key
     resource "yandex_iam_service_account_static_access_key" "accesskey-bucket" {
@@ -139,7 +139,15 @@
     export SA_TER_SECRET_KEY="<секретный_ключ>"
     ```
     ![](.README_images/ec90afcd.png)
-7. Добавим описание бекенда в [`main.tf`](src/terraform/main.tf)
+
+#### Основной манифест
+
+1. Для хранения основного проекта terraform будем использовать отдельный репозиторий в GitHub, который будем использовать в качества git submodule
+2. Создадим новый репозиторий [diplops-terraform](https://github.com/zemlyachev/diplops-terraform)
+3. Подключим из папки src как submodule
+     ![](.README_images/978b682c.png)
+3. Перенесем манифест созданный ранее
+4. Добавим описание бекенда в [provider.tf](src%2Fdiplops-terraform%2Fprovider.tf)
     ```hcl
     terraform {
       ...  
@@ -158,14 +166,14 @@
       }
     }
     ```
-8. Для переноса состояния выполним `terraform init -backend-config="access_key=$SA_TER_ACCESS_KEY" -backend-config="secret_key=$SA_TER_SECRET_KEY"
+5. Для переноса состояния выполним `terraform init -backend-config="access_key=$SA_TER_ACCESS_KEY" -backend-config="secret_key=$SA_TER_SECRET_KEY"
 
-    ![](.README_images/8f0ba50d.png)
-    ![](.README_images/440b76ba.png)
+    ![](.README_images/318586a4.png)
+    ![](.README_images/1a6398ec.png)
 
 #### Создайте VPC с подсетями в разных зонах доступности
 
-1. Для начала опишем variable:
+1. Для начала опишем [variables.tf](src%2Fdiplops-terraform%2Fvariables.tf):
     ```hcl
     variable "subnets" {
       type    = map(string)
@@ -176,22 +184,7 @@
       })
     }
     ```
-2. Опишем в [`main.tf`](src/terraform/main.tf) VPC и подсети
-    ```hcl
-    # VPC
-    resource "yandex_vpc_network" "network-diplom" {
-      name      = "network-diplom"
-      folder_id = var.YC_FOLDER_ID
-    }
-    # Subnets
-    resource "yandex_vpc_subnet" "subnet" {
-      for_each       = tomap(var.subnets)
-      name           = "subnet-${each.key}"
-      zone           = "ru-central1-${each.key}"
-      network_id     = yandex_vpc_network.network-diplom.id
-      v4_cidr_blocks = [each.value]
-    }
-    ```
+2. Опишем в [vpc.tf](src%2Fdiplops-terraform%2Fvpc.tf) VPC и подсети и nat gateway, чтобы у воркеров не было внешний ip-адресов
 3. Применим
     ![](.README_images/98557de6.png)
     ![](.README_images/0dff70d0.png)
@@ -202,55 +195,35 @@
 #### Подготавливаем виртуальные машины Compute Cloud для создания Kubernetes-кластера
 
 1. Добавим в файлы:
-    * [locals.tf](src/terraform/locals.tf):
+    * [locals.tf](src%2Fdiplops-terraform%2Flocals.tf):
         ```hcl
+        # Публичный ключик ssh
         locals {
-          ssh_public_key = file("~/.ssh/id_rsa.pub")
+          ssh_public_key = file("id_rsa.pub")
           ubuntu_ssh_key = "ubuntu:${local.ssh_public_key}"
         }
         ```
-    * [variables.tf](src/terraform/variables.tf):
+    * [variables.tf](src%2Fdiplops-terraform%2Fvariables.tf):
         ```hcl
+        # Подходящий образ для виртуалки
         variable "ubuntu_image_id" {
           type        = string
           default     = "fd88bokmvjups3o0uqes"
           description = "ubuntu-22-04-lts-v20240603"
         }
-        ```
-    * [main.tf](src/terraform/main.tf):
-        ```hcl
-        # VM Worker Nodes
-        resource "yandex_compute_instance" "node-worker" {
-          for_each                  = tomap(var.subnets)
-          name                      = "node-worker-${each.key}"
-          zone                      = "ru-central1-${each.key}"
-          hostname                  = "node-worker-${each.key}"
-          platform_id               = "standard-v3"
-          allow_stopping_for_update = true
-          resources {
-            cores         = 2
-            memory        = 2
-            core_fraction = 20
-          }
-          boot_disk {
-            initialize_params {
-              image_id = var.ubuntu_image_id
-              size     = 10
-            }
-          }
-          scheduling_policy {
-            preemptible = true
-          }
-          network_interface {
-            subnet_id = "${yandex_vpc_subnet.subnet[each.key].id}"
-            nat       = true
-          }
-          metadata = {
-            serial-port-enable = 1
-            ssh-keys           = local.ubuntu_ssh_key
-          }
+      
+        # Воркеры <ключ подсети> = <количество виртуалок>
+        variable "workers" {
+          type    = map(number)
+          default = ({
+            a = 1,
+            b = 1,
+            d = 1
+          })
         }
-        
+        ```
+    * [k8s-master.tf](src%2Fdiplops-terraform%2Fk8s-master.tf):
+        ```hcl
         # VM kube master node
         resource "yandex_compute_instance" "node-master" {
           name                      = "node-master-a"
@@ -259,8 +232,9 @@
           platform_id               = "standard-v3"
           allow_stopping_for_update = true
           resources {
-            cores  = 2
-            memory = 4
+            cores         = 2
+            memory        = 4
+            core_fraction = 50
           }
           boot_disk {
             initialize_params {
@@ -282,105 +256,76 @@
           value = yandex_compute_instance.node-master.network_interface.0.nat_ip_address
         }
         ```
-2. Для конфигурации Kubespray создадим манифесты с помощью terraform:
-    ```hcl
-    # Create init inventory file
-    resource "local_file" "inventory-init" {
-      content    = <<EOF1
-    [kube-cloud]
-    ${yandex_compute_instance.node-master.network_interface.0.nat_ip_address}
-    %{ for worker in yandex_compute_instance.node-worker }
-    ${worker.network_interface.0.nat_ip_address}
-    %{ endfor }
-      EOF1
-      filename   = "../ansible/inventory-init"
-      depends_on = [yandex_compute_instance.node-master, yandex_compute_instance.node-worker]
-    }
-    
-    # Create Kubespray inventory
-    resource "local_file" "inventory-kubespray" {
-      content    = <<EOF2
-    all:
-      hosts:
-        ${yandex_compute_instance.node-master.fqdn}:
-          ansible_host: ${yandex_compute_instance.node-master.network_interface.0.ip_address}
-          ip: ${yandex_compute_instance.node-master.network_interface.0.ip_address}
-          access_ip: ${yandex_compute_instance.node-master.network_interface.0.ip_address}
-    %{ for worker in yandex_compute_instance.node-worker }
-        ${worker.fqdn}:
-          ansible_host: ${worker.network_interface.0.ip_address}
-          ip: ${worker.network_interface.0.ip_address}
-          access_ip: ${worker.network_interface.0.ip_address}
-    %{ endfor }
-      children:
-        kube_control_plane:
-          hosts:
-            ${yandex_compute_instance.node-master.fqdn}:
-        kube_node:
-          hosts:
-    %{ for worker in yandex_compute_instance.node-worker }
-            ${worker.fqdn}:
-    %{ endfor }
-        etcd:
-          hosts:
-            ${yandex_compute_instance.node-master.fqdn}:
-        k8s_cluster:
-          children:
-            kube_control_plane:
-            kube_node:
-        calico_rr:
-          hosts: {}
-      EOF2
-      filename   = "../ansible/inventory-kubespray"
-      depends_on = [yandex_compute_instance.node-master, yandex_compute_instance.node-worker]
-    }
-    ```
+    * [k8s-worker.tf](src%2Fdiplops-terraform%2Fk8s-worker.tf):
+        ```hcl
+        # VM Worker Nodes
+        resource "yandex_compute_instance" "node-worker" {
+          for_each = merge([
+            for k, v in var.workers :
+            {for i in range(v) : "node-worker-${k}-${i + 1}" => k}
+          ]...)
+          name                      = each.key
+          zone                      = "ru-central1-${each.value}"
+          hostname                  = each.key
+          platform_id               = "standard-v3"
+          allow_stopping_for_update = true
+          resources {
+            cores         = 2
+            memory        = 2
+            core_fraction = 20
+          }
+          boot_disk {
+            initialize_params {
+              image_id = var.ubuntu_image_id
+              size     = 10
+            }
+          }
+          scheduling_policy {
+            preemptible = true # приостанавливаемая
+          }
+          network_interface {
+            subnet_id = "${yandex_vpc_subnet.subnet[each.value].id}"
+            nat       = false
+          }
+          metadata = {
+            serial-port-enable = 1
+            ssh-keys           = local.ubuntu_ssh_key
+          }
+        }
+        ```
+2. Для конфигурации Kubespray создадим манифесты с помощью terraform в файле [kubespray-inventory.tf](src%2Fdiplops-terraform%2Fkubespray-inventory.tf)
 3. Применим
     ![](.README_images/1e330d2c.png)
     > В процессе внешний ip-адрес мастер ноды будет меняться...
 
     ![](.README_images/9299dd9b.png)
 4. На выходе получили 2 файла
-    * [inventory-init](src/ansible/inventory-init)
-    * [inventory-kubespray](src/ansible/inventory-kubespray)
+    * [inventory-init](src%2Fdiplops-terraform%2Fansible%2Finventory-init)
+    * [inventory-kubespray](src%2Fdiplops-terraform%2Fansible%2Finventory-kubespray)
 
 #### Деплой Kubernetes
 
-1. Выполним подготовку `ansible-playbook -i inventory-init -b -v -u ubuntu init.yaml`
+1. Выполним подготовку `ansible-playbook -i ../diplops-terraform/ansible/inventory-init -b -v -u ubuntu init.yaml`
    ![](.README_images/d120a42b.png)
 
-2. Дополним файлики
-   - `vim kubespray/inventory/diplom-cluster/group_vars/k8s_cluster/addons.yml`
-
-       ```yaml
-       helm_enabled: true
-       ingress_nginx_enabled: true
-       ingress_nginx_host_network: true
-       ```
-   - `vim kubespray/inventory/diplom-cluster/group_vars/k8s_cluster/k8s-cluster.yml`
-
-       ```yaml
-       supplementary_addresses_in_ssl_keys: [158.160.100.70] - внешний ip
-       ```
-     
-3. Подключаемся на мастер ноду, которая будет control plane, и запускаем плейбук kybespray
+2. Подключаемся к мастер ноде, которая будет control plane, и запускаем плейбук kubespray
     ```bash
     cd kubespray/
     sudo ansible-playbook -i inventory/diplom-cluster/inventory-kubespray -u ubuntu -b -v --private-key=/home/ubuntu/.ssh/id_rsa cluster.yml
     ```
    ![](.README_images/c1d0d8fb.png)
-3. Настроим kubectl
+3. Настроим kubectl на стороне мастер ноды с помощью плейбука [prepare-config.yaml](src%2Fansible%2Fprepare-config.yaml)
     ```bash
-    mkdir -p $HOME/.kube
-    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+    ansible-playbook -i ../diplops-terraform/ansible/inventory-init -b -v -u ubuntu prepare-config.yaml
     ```
 4. Развернутый кластер
     ![](.README_images/ed01aaa8.png)
     ![](.README_images/2d9d5412.png)
 
-5. Заберем конфиг на локальную машину для удобства
-    ![](.README_images/0a9bc902.png)
+5. Заберем конфиг на локальную машину для удобства с помощью плейбука [get-config.yaml](src%2Fansible%2Fget-config.yaml)
+    ```bash
+    ansible-playbook -i ../diplops-terraform/ansible/inventory-init -v -u ubuntu get-config.yaml
+    ```
     Теперь управление кластером доступно локально
 
 ### Создание тестового приложения
@@ -404,18 +349,7 @@
 
 #### Yandex Container Registry, созданный также с помощью terraform
 
-1. Дополним наш [`main.tf`](src/terraform/main.tf) директивой для хранилища образов
-    ```hcl
-    # Yandex Container Registry
-    resource "yandex_container_registry" "diplops-reg" {
-      name = "diplops-registry"
-      folder_id = var.YC_FOLDER_ID
-    }
-    
-    output "first_part_of_docker_image_tag" {
-      value = "cr.yandex/${yandex_container_registry.diplops-reg.id}/"
-    }
-    ```
+1. Создадим файл [registry.tf](src%2Fdiplops-terraform%2Fregistry.tf) с директивой для хранилища образов, а также сервис аккаунтом для обращение к registry из GitHub Actions
 2. Применим
     ![](.README_images/260a245b.png)
 
@@ -434,13 +368,14 @@
 
 #### Мониторинг
 
-1. Клонируем репозитарий 
+1. Клонируем репозиторий 
     `git clone https://github.com/prometheus-operator/kube-prometheus`
     
     ![](.README_images/b0ad6fd1.png)
     
 2. Выполняем
     ```bash
+    cd kube-prometheus
     kubectl apply --server-side -f manifests/setup
     kubectl wait \
         --for condition=Established \
@@ -452,7 +387,7 @@
     ![](.README_images/e69b12cb.png)
     ![](.README_images/2b2c8bd8.png)
 
-3. Ждем
+3. Ждем когда все поднимется
     ![](.README_images/da686eb6.png)
 
 4. Для подключения к grafana из вне, поменяем тип сервиса на NodePort и допишем номер порта, например 31001
@@ -478,9 +413,7 @@
 
 #### Автоматизация
 
-1. Создадим новый репозитарий [diplops-terraform](https://github.com/zemlyachev/diplops-terraform)
-2. Перенесем все необходимые файлы
-3. Добавим секреты для доступа к Yandex.Cloud и хранилищу состояния
+1. В ранее созданный репозиторий [diplops-terraform](https://github.com/zemlyachev/diplops-terraform) добавим секреты для доступа к Yandex.Cloud и хранилищу состояния
    ![](.README_images/1c7d88d7.png)
 4. Напишем pipeline для GitHub Actions [terraform-ci-cd.yml](https://github.com/zemlyachev/diplops-terraform/blob/main/.github/workflows/terraform-ci-cd.yml)
 5. Пушим в main и видим что сборка прошла успешно (почти с первого раза)
@@ -492,7 +425,7 @@
 
 #### Сборка и загрузка в реестр по коммиту в main
 
-1. Для репозитария https://github.com/zemlyachev/diplops-app пропишем также pipeline github actions
+1. Для репозитория https://github.com/zemlyachev/diplops-app пропишем также pipeline github actions
 2. Добавляем секреты
     ![](.README_images/fb02ae1c.png)
 3. Создаем pipline [build.yaml](https://github.com/zemlyachev/diplops-app/blob/main/.github/workflows/build.yml)
