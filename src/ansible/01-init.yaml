@@ -54,6 +54,7 @@
         cluster: "{{ cluster | combine(newcluster) }}"
       vars:
         newcluster:
+          resolvconf_mode: docker_dns
           kube_proxy_strict_arp: true
           kube_network_plugin: cilium
           supplementary_addresses_in_ssl_keys: ["{{ inventory_hostname }}"]
@@ -77,20 +78,16 @@
         addons: "{{ addons | combine(newaddons) }}"
       vars:
         newaddons:
-          metallb_enabled: true
-          metallb_version: v0.13.9
-          metallb_auto_assign: true
-          metallb_protocol: "layer2"
-          metallb_speaker_enabled: true
-          metallb_avoid_buggy_ips: true
-          metallb_ip_range:
-            - 192.168.1.200-192.168.1.220
           ingress_nginx_enabled: true
           ingress_nginx_host_network: false
           ingress_publish_status_address: ""
-          ingress_nginx_namespace: "ingress-nginx"
-          ingress_nginx_insecure_port: 80
-          ingress_nginx_secure_port: 443
+
+          metallb_enabled: true
+          metallb_speaker_enabled: true
+          metallb_ip_range:
+            - "192.168.10.50-192.168.10.80"
+          metallb_auto_assign: true
+          metallb_avoid_buggy_ips: true
 
     - name: Write back to a file addons.yml
       copy:
