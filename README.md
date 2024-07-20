@@ -1,14 +1,20 @@
 # Дипломный практикум в Yandex.Cloud
+
+Содержание
+==========
+
 * [Дипломный практикум в Yandex.Cloud](#дипломный-практикум-в-yandexcloud)
     * [Цели:](#цели)
     * [Этапы выполнения:](#этапы-выполнения)
         * [Создание облачной инфраструктуры](#создание-облачной-инфраструктуры)
             * [Конфигурация и сервисный аккаунт](#конфигурация-и-сервисный-аккаунт)
             * [Backend Terraform](#backend-terraform)
+            * [Основной манифест](#основной-манифест)
             * [Создайте VPC с подсетями в разных зонах доступности](#создайте-vpc-с-подсетями-в-разных-зонах-доступности)
         * [Создание Kubernetes кластера](#создание-kubernetes-кластера)
             * [Подготавливаем виртуальные машины Compute Cloud для создания Kubernetes-кластера](#подготавливаем-виртуальные-машины-compute-cloud-для-создания-kubernetes-кластера)
             * [Деплой Kubernetes](#деплой-kubernetes)
+        * [Определим адрес](#определим-адрес)
         * [Создание тестового приложения](#создание-тестового-приложения)
             * [Пререквизиты](#пререквизиты)
             * [Образ](#образ)
@@ -21,6 +27,9 @@
         * [Установка и настройка CI/CD](#установка-и-настройка-cicd)
             * [Сборка и загрузка в реестр по коммиту в main](#сборка-и-загрузка-в-реестр-по-коммиту-в-main)
             * [Сборка и деплой при создании тега](#сборка-и-деплой-при-создании-тега)
+            * [Заключение](#заключение)
+
+<!-- Created by https://github.com/ekalinin/github-markdown-toc -->
           
 **Перед началом работы над дипломным заданием изучите [Инструкция по экономии облачных ресурсов](https://github.com/netology-code/devops-materials/blob/master/cloudwork.MD).**
 
@@ -93,7 +102,7 @@
 
 #### Backend Terraform 
 
-1. Подготовим bucket для backend в отдельном манифесте в директории [terraform-s3-backend](src%2Fterraform-s3-backend) с аналогичными основному манифесту параметра для доступа к облачному провайдеру
+1. Подготовим bucket для backend в отдельном манифесте в директории [terraform-s3-backend](src/terraform-s3-backend) с аналогичными основному манифесту параметра для доступа к облачному провайдеру
     ```hcl
     # Backend bucket access key
     resource "yandex_iam_service_account_static_access_key" "accesskey-bucket" {
@@ -147,7 +156,7 @@
 3. Подключим из папки src как submodule
      ![](.README_images/978b682c.png)
 3. Перенесем манифест созданный ранее
-4. Добавим описание бекенда в [provider.tf](src%2Fdiplops-terraform%2Fprovider.tf)
+4. Добавим описание бекенда в [provider.tf](src/diplops-terraform/provider.tf)
     ```hcl
     terraform {
       ...  
@@ -173,7 +182,7 @@
 
 #### Создайте VPC с подсетями в разных зонах доступности
 
-1. Для начала опишем [variables.tf](src%2Fdiplops-terraform%2Fvariables.tf):
+1. Для начала опишем [variables.tf](src/diplops-terraform/variables.tf):
     ```hcl
     variable "subnets" {
       type    = map(string)
@@ -184,7 +193,7 @@
       })
     }
     ```
-2. Опишем в [vpc.tf](src%2Fdiplops-terraform%2Fvpc.tf) VPC и подсети и nat gateway, чтобы у воркеров не было внешний ip-адресов
+2. Опишем в [vpc.tf](src/diplops-terraform/vpc.tf) VPC и подсети и nat gateway, чтобы у воркеров не было внешний ip-адресов
 3. Применим
     ![](.README_images/98557de6.png)
     ![](.README_images/0dff70d0.png)
@@ -195,7 +204,7 @@
 #### Подготавливаем виртуальные машины Compute Cloud для создания Kubernetes-кластера
 
 1. Добавим в файлы:
-    * [locals.tf](src%2Fdiplops-terraform%2Flocals.tf):
+    * [locals.tf](src/diplops-terraform/locals.tf):
         ```hcl
         # Публичный ключик ssh
         locals {
@@ -203,7 +212,7 @@
           ubuntu_ssh_key = "ubuntu:${local.ssh_public_key}"
         }
         ```
-    * [variables.tf](src%2Fdiplops-terraform%2Fvariables.tf):
+    * [variables.tf](src/diplops-terraform/variables.tf):
         ```hcl
         # Подходящий образ для виртуалки
         variable "ubuntu_image_id" {
@@ -222,7 +231,7 @@
           })
         }
         ```
-    * [k8s-master.tf](src%2Fdiplops-terraform%2Fk8s-master.tf):
+    * [k8s-master.tf](src/diplops-terraform/k8s-master.tf):
         ```hcl
         # VM kube master node
         resource "yandex_compute_instance" "node-master" {
@@ -256,7 +265,7 @@
           value = yandex_compute_instance.node-master.network_interface.0.nat_ip_address
         }
         ```
-    * [k8s-worker.tf](src%2Fdiplops-terraform%2Fk8s-worker.tf):
+    * [k8s-worker.tf](src/diplops-terraform/k8s-worker.tf):
         ```hcl
         # VM Worker Nodes
         resource "yandex_compute_instance" "node-worker" {
@@ -293,40 +302,47 @@
           }
         }
         ```
-2. Для конфигурации Kubespray создадим манифесты с помощью terraform в файле [kubespray-inventory.tf](src%2Fdiplops-terraform%2Fkubespray-inventory.tf)
+2. Для конфигурации Kubespray создадим манифесты с помощью terraform в файле [kubespray-inventory.tf](src/diplops-terraform/kubespray-inventory.tf)
 3. Применим
     ![](.README_images/1e330d2c.png)
     > В процессе внешний ip-адрес мастер ноды будет меняться...
 
     ![](.README_images/9299dd9b.png)
 4. На выходе получили 2 файла
-    * [inventory-init](src%2Fdiplops-terraform%2Fansible%2Finventory-init)
-    * [inventory-kubespray](src%2Fdiplops-terraform%2Fansible%2Finventory-kubespray)
+    * [inventory-init](src/diplops-terraform/ansible/inventory-init)
+    * [inventory-kubespray](src/diplops-terraform/ansible/inventory-kubespray)
 
 #### Деплой Kubernetes
 
-1. Выполним подготовку `ansible-playbook -i ../diplops-terraform/ansible/inventory-init -b -v -u ubuntu init.yaml`
-   ![](.README_images/d120a42b.png)
+1. Перейдем в директорию [ansible](src/ansible)
+2. Выполним подготовку `ansible-playbook -i ../diplops-terraform/ansible/inventory-init -b -u ubuntu 01-init.yaml`
+   ![](.README_images/8bd9a24e.png)
 
-2. Подключаемся к мастер ноде, которая будет control plane, и запускаем плейбук kubespray
+3. Подключаемся к мастер ноде, которая будет control plane, и запускаем плейбук kubespray
     ```bash
     cd kubespray/
-    sudo ansible-playbook -i inventory/diplom-cluster/inventory-kubespray -u ubuntu -b -v --private-key=/home/ubuntu/.ssh/id_rsa cluster.yml
+    sudo ansible-playbook -i inventory/diplom-cluster/inventory-kubespray -u ubuntu -b --private-key=/home/ubuntu/.ssh/id_rsa cluster.yml
     ```
-   ![](.README_images/c1d0d8fb.png)
-3. Настроим kubectl на стороне мастер ноды с помощью плейбука [prepare-config.yaml](src%2Fansible%2Fprepare-config.yaml)
+   ![](.README_images/03fdba78.png)
+4. Настроим kubectl на стороне мастер ноды с помощью плейбука [02-prepare-config.yaml](src/ansible/02-prepare-config.yaml)
     ```bash
-    ansible-playbook -i ../diplops-terraform/ansible/inventory-init -b -v -u ubuntu prepare-config.yaml
+    ansible-playbook -i ../diplops-terraform/ansible/inventory-init -b -u ubuntu 02-prepare-config.yaml
     ```
-4. Развернутый кластер
-    ![](.README_images/ed01aaa8.png)
-    ![](.README_images/2d9d5412.png)
+   ![](.README_images/bce7b8b6.png)
+5. Развернутый кластер
+    ![](.README_images/e353e55c.png)
 
-5. Заберем конфиг на локальную машину для удобства с помощью плейбука [get-config.yaml](src%2Fansible%2Fget-config.yaml)
+6. Заберем конфиг на локальную машину для удобства с помощью плейбука [03-get-config.yaml](src/ansible/03-get-config.yaml)
     ```bash
-    ansible-playbook -i ../diplops-terraform/ansible/inventory-init -v -u ubuntu get-config.yaml
+    ansible-playbook -i ../diplops-terraform/ansible/inventory-init -u ubuntu 03-get-config.yaml
     ```
+   ![](.README_images/c1effd8b.png)
     Теперь управление кластером доступно локально
+
+### Определим адрес
+
+В качестве адреса к сервисам внутри k8s будем использовать внешний адрес мастер ноды, а порт временно будем использовать, который нам выдался для сервиса ingress-nginx с типом LoadBalancer
+![](.README_images/e97b7f2c.png)
 
 ### Создание тестового приложения
 
@@ -349,7 +365,7 @@
 
 #### Yandex Container Registry, созданный также с помощью terraform
 
-1. Создадим файл [registry.tf](src%2Fdiplops-terraform%2Fregistry.tf) с директивой для хранилища образов, а также сервис аккаунтом для обращение к registry из GitHub Actions
+1. Создадим файл [registry.tf](src/diplops-terraform/registry.tf) с директивой для хранилища образов, а также сервис аккаунтом для обращение к registry из GitHub Actions
 2. Применим
     ![](.README_images/260a245b.png)
 
@@ -368,8 +384,9 @@
 
 #### Мониторинг
 
-1. Клонируем репозиторий 
+1. Подключаемся к мастер ноде, клонируем репозиторий 
     `git clone https://github.com/prometheus-operator/kube-prometheus`
+    `git clone clone --branch release-0.13 https://github.com/prometheus-operator/kube-prometheus`
     
     ![](.README_images/b0ad6fd1.png)
     
@@ -390,26 +407,41 @@
 3. Ждем когда все поднимется
     ![](.README_images/da686eb6.png)
 
-4. Для подключения к grafana из вне, поменяем тип сервиса на NodePort и допишем номер порта, например 31001
-    `kubectl edit svc stable-grafana -n monitoring`
-    ![](.README_images/2b3064aa.png)
-5. Зайдем на http://158.160.100.70:31001, авторизуемся с помощью стандартного логина и пароля (admin/admin, получим предложение поменять пароль, поменяем на что-то)
+4. Для подключения к grafana из вне, выполним манифест [grafana-ingress.yaml](src/kube/grafana-ingress.yaml)
+5. Зайдем на http://51.250.95.14:31800/grafana, авторизуемся с помощью стандартного логина и пароля (admin/admin, получим предложение поменять пароль, поменяем на что-то)
     ![](.README_images/661e3ce0.png)
 
 #### Деплой
 
-1. Создадим манифест для ранее созданного приложения [app-dp-svc.yaml](https://github.com/zemlyachev/diplops-app/blob/main/app-dp-svc.yaml)
-2. Для доступа к реестру создадим сервисный аккаунт [kuber-registry-sa.tf](src/terraform/kuber-registry-sa.tf)
+1. Создадим манифест для ранее созданного приложения: 
+  - [app-dp.yaml](https://github.com/zemlyachev/diplops-app/blob/main/app-dp.yaml)
+  - [app-svc.yaml](https://github.com/zemlyachev/diplops-app/blob/main/app-svc.yaml)
+  - [app-ingress.yaml](https://github.com/zemlyachev/diplops-app/blob/main/app-ingress.yaml)
+2. Для доступа к реестру создадим сервисный аккаунт в файле [registry.tf](src/diplops-terraform/registry.tf)
+
+    И проверим `yc iam service-account list`
     ![](.README_images/bde179ec.png)
-3. Создадим ключ
+3. Создадим ключ `yc iam key create --service-account-name sa-registry-puller -o key.json`
     ![](.README_images/d11e5d9c.png)
 4. Авторизуемся этим ключем
+    ```bash
+    cat key.json | docker login \
+    --username json_key \
+    --password-stdin \
+    cr.yandex
+    ```
     ![](.README_images/7a9d0d9e.png)
 5. Создадим секрет для добавления его в Deployment
+    ```bash
+   kubectl create secret generic image-puller-sec \
+   --from-file=.dockerconfigjson=$HOME/.docker/config.json \
+   --type=kubernetes.io/dockerconfigjson
+    ```
     ![](.README_images/ef703b25.png)
-6. Выполним манифест `kubectl apply -f app-dp-svc.yaml`
+6. Выполним манифесты `kubectl apply -f app-svc.yaml`, `kubectl apply -f app-dp.yaml` и `kubectl apply -f app-ingress.yaml`
+    ![](.README_images/e3b4b4d2.png)
     ![](.README_images/8193d4e1.png)
-    На http://158.160.100.70:30080 появился наш сайт
+    На http://51.250.95.14:31800 появился наш сайт
 
 #### Автоматизация
 
@@ -448,6 +480,13 @@
 5. Посмотрим на сам сайт, он обновился
     ![](.README_images/b6107625.png)
 6. CI/CD настроен
+
+
+#### Заключение
+
+1. Выше приведенные ссылки могут перестать работать в связи с прерываемыми машинами, либо окончанием гранта на облако
+2. Для сокрытия некрасивого порта 31800 можно дополнительно на мастер ноде поднять nginx для переадресации запросов с 80 порта на наш
+3. Использовалось IDE IntelliJ IDEA, терминал WARP, браузер Arc, сборка toc для markdown [gh-md-toc](https://github.com/ekalinin/github-markdown-toc)
 
 
 
